@@ -1,0 +1,98 @@
+    <?php
+
+namespace App\Policies;
+
+use App\Models\Transaction;
+use App\Models\User;
+use Illuminate\Auth\Access\HandlesAuthorization;
+
+class TransactionPolicy
+{
+    use HandlesAuthorization;
+
+    /**
+     * Determine whether the user can view any models.
+     */
+    public function viewAny(User $user): bool
+    {
+        // Semua peran dapat melihat daftar transaksi tetapi dengan filter berbeda
+        return $user->hasRole('admin') || $user->hasRole('finance') || $user->hasRole('customer');
+    }
+
+    /**
+     * Determine whether the user can view the model.
+     */
+    public function view(User $user, Transaction $transaction): bool
+    {
+        // Customer hanya dapat melihat transaksi mereka sendiri
+        if ($user->hasRole('customer')) {
+            // Periksa apakah user memiliki relasi customer
+            if (property_exists($user, 'customer') && $user->customer !== null) {
+                return $transaction->invoice->customer_id === $user->customer->id;
+            }
+            
+            // Jika tidak ada relasi customer, periksa user_id pada invoice
+            if (isset($transaction->invoice) && $transaction->invoice !== null) {
+                return $transaction->invoice->user_id === $user->id;
+            }
+            
+            // Jika tidak ada relasi yang valid, periksa user_id di transaksi
+            return $transaction->user_id === $user->id;
+        }
+        
+        // Admin dan Finance dapat melihat semua transaksi
+        return $user->hasRole('admin') || $user->hasRole('finance');
+    }
+
+    /**
+     * Determine whether the user can create models.
+     */
+    public function create(User $user): bool
+    {
+        // Customer dapat membuat transaksi untuk invoice mereka sendiri
+        // Admin dan Finance dapat membuat transaksi untuk siapa saja
+        return $user->hasRole('admin') || $user->hasRole('finance') || $user->hasRole('customer');
+    }
+
+    /**
+     * Determine whether the user can update the model.
+     */
+    public function update(User $user, Transaction $transaction): bool
+    {
+        // Hanya admin dan finance yang dapat mengupdate transaksi
+        return $user->hasRole('admin') || $user->hasRole('finance');
+    }
+
+    /**
+     * Determine whether the user can delete the model.
+     */
+    public function delete(User $user, Transaction $transaction): bool
+    {
+        // Hanya admin yang dapat menghapus transaksi
+        return $user->hasRole('admin');
+    }
+
+    /**
+     * Determine whether the user can generate receipt for the transaction.
+     */
+    public function generateReceipt(User $user, Transaction $transaction): bool
+    {
+        // Customer dapat menghasilkan receipt untuk transaksi mereka sendiri
+        if ($user->hasRole('customer')) {
+            // Periksa apakah user memiliki relasi customer
+            if (property_exists($user, 'customer') && $user->customer !== null) {
+                return $transaction->invoice->customer_id === $user->customer->id;
+            }
+            
+            // Jika tidak ada relasi customer, periksa user_id pada invoice
+            if (isset($transaction->invoice) && $transaction->invoice !== null) {
+                return $transaction->invoice->user_id === $user->id;
+            }
+            
+            // Jika tidak ada relasi yang valid, periksa user_id di transaksi
+            return $transaction->user_id === $user->id;
+        }
+        
+        return $user->hasRole('admin') || $user->hasRole('finance');
+    }
+}
